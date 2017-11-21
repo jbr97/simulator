@@ -1,4 +1,11 @@
+/***********
+Author: joishbader
+Date:   2017/11/21
+Title:  COD_lab2.2
+***********/
+
 #include<stdio.h>
+#include<stdint.h>
 #include<stdlib.h>
 #include<string.h>
 
@@ -74,7 +81,6 @@ typedef int16 Elf64_Half;
 #define	SHN_ABS 0xFFF1
 #define	SHN_COMMON 0xFFF2
 
-
 typedef struct{
 	unsigned char e_ident[16]; /* ELF identification */
 	Elf64_Half e_type; /* Object file type */
@@ -126,28 +132,9 @@ typedef struct{
 	Elf64_Xword p_align; /* Alignment of segment */
 } Elf64_Phdr;
 
-
-void read_elf();
 void read_elf_header();
 void read_elf_sections();
 void read_symtable();
 void read_phdr();
 
-
-unsigned int cadr=0;
-
-unsigned int csize=0;
-
-unsigned int vadr=0;
-
-unsigned long long gp=0;
-
-unsigned int madr=0;
-
-unsigned int endPC=0;
-
-unsigned int entry=0;
-
-FILE *file=NULL;
-
-
+void *read_elf(const char *file_name);

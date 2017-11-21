@@ -1,38 +1,51 @@
 /***********
 Author: joishbader
-Date:   2017/10/24
-Title:  COD_lab2.1
+Date:   2017/11/21
+Title:  COD_lab2.2
 ***********/
 
 #include"Read_Elf.h"
 
-FILE *elf=NULL;
-Elf64_Ehdr elf64_hdr;
+static FILE *elf;
+static FILE *file;
 
-//Program headers
-unsigned int padr=0;
-unsigned int psize=0;
-unsigned int pnum=0;
+// Program headers
+static unsigned int padr;
+static unsigned int psize;
+static unsigned int pnum;
 
-//Section Headers
-unsigned int sadr=0;
-unsigned int ssize=0;
-unsigned int snum=0;
+// Section Headers
+static unsigned int sadr;
+static unsigned int ssize;
+static unsigned int snum;
 
-//Symbol table
-unsigned int symnum=0;
-unsigned int symadr=0;
-unsigned int symsize=0;
+// Symbol table
+static unsigned int symnum;
+static unsigned int symadr;
+static unsigned int symsize;
 
-//Section header string table index 
-unsigned int sindex=0;
+// Section header string table index 
+static unsigned int sindex;
 
-//Symbol string table
-unsigned int stradr=0;
-unsigned int strsize=0;
+// Symbol string table
+static unsigned int stradr;
+static unsigned int strsize;
 
+// import sections
+void *sec_text;
+Elf64_Shdr shdr_text;
+void *sec_bss;
+Elf64_Shdr shdr_bss;
+void *sec_data;
+Elf64_Shdr shdr_data;
+void *sec_sdata;
+Elf64_Shdr shdr_sdata;
 
-void read_elf(const char *file_name)
+// important symbols
+uint64_t sym_PC;
+uint64_t sym_GP;
+
+void *read_elf(const char *file_name)
 {
 	// open elf_info file
 	elf = fopen("elf_log.txt", "w");
@@ -42,8 +55,8 @@ void read_elf(const char *file_name)
 	if (file == NULL) {
 		fprintf(elf, "Can not open ELF file %s.\n", file_name);
 		fclose(elf);
-		return;
-	}	
+		exit(1);
+	}
 
 	// read elf file header
 	fprintf(elf,"ELF Header:\n");
@@ -61,12 +74,22 @@ void read_elf(const char *file_name)
 	fprintf(elf,"\n\nSymbol table:\n");
 	read_symtable();
 
+	// load file into memory
+	fseek(file, 0, SEEK_END);
+	uint64_t file_size = (uint64_t) ftell(file);
+	fseek(file, 0, 0);
+	void *fp = malloc(file_size);
+	fread(fp, 1, file_size, file);
+
 	// close elf file
 	fclose(elf);
+	
+	return fp;
 }
 
 void read_elf_header()
 {
+	Elf64_Ehdr elf64_hdr;
 	// file should be relocated
 	fread(&elf64_hdr, 1, sizeof(elf64_hdr), file);
 	
@@ -139,6 +162,31 @@ void read_elf_sections()
 			strsize = elf64_shdr.sh_size;
 		}
 
+		if (strcmp((const char *) str_sh_name, ".text") == 0)  {
+			shdr_text = elf64_shdr;
+			sec_text = malloc(elf64_shdr.sh_size);
+			fseek(file, shdr_text.sh_offset, 0);
+			fread(sec_text, 1, shdr_text.sh_size, file);
+		}
+		if (strcmp((const char *) str_sh_name, ".bss") == 0)  {
+			shdr_bss = elf64_shdr;
+			sec_bss = malloc(elf64_shdr.sh_size);
+			fseek(file, shdr_bss.sh_offset, 0);
+			fread(sec_bss, 1, shdr_bss.sh_size, file);
+		}
+		if (strcmp((const char *) str_sh_name, ".data") == 0)  {
+			shdr_data = elf64_shdr;
+			sec_data = malloc(shdr_data.sh_size);
+			fseek(file, shdr_data.sh_offset, 0);
+			fread(sec_data, 1, shdr_data.sh_size, file);
+		}
+		if (strcmp((const char *) str_sh_name, ".sdata") == 0)  {
+			shdr_sdata = elf64_shdr;
+			sec_sdata = malloc(shdr_sdata.sh_size);
+			fseek(file, shdr_sdata.sh_offset, 0);
+			fread(sec_sdata, 1, shdr_sdata.sh_size, file);
+		}
+
 		fprintf(elf, " Name: %20s  ", str_sh_name);
 		fprintf(elf, " Type: %x", (unsigned int) elf64_shdr.sh_type);
 		fprintf(elf, " Address: %x", (unsigned int) elf64_shdr.sh_addr);
@@ -192,8 +240,18 @@ void read_symtable()
 		
 		//file should be relocated
 		fread(&elf64_sym, 1, sizeof(elf64_sym), file);
+		
+		unsigned char *str_st_name = strtable + (unsigned int) elf64_sym.st_name;
 
-		fprintf(elf, " Name: %40s   ", strtable + elf64_sym.st_name);
+		if (strcmp((const char *) str_st_name, "main") == 0) 
+			sym_PC = elf64_sym.st_value;
+
+		if (strcmp((const char *) str_st_name, "__global_pointer$") == 0) 
+			sym_GP = elf64_sym.st_value;
+		if (strcmp((const char *) str_st_name, "_gp") == 0) 
+			sym_GP = elf64_sym.st_value;
+
+		fprintf(elf, " Name: %40s   ", str_st_name);
 		fprintf(elf, " Bind: %x", (unsigned int) elf64_sym.st_info >> 4);
 		fprintf(elf, " Type: %x", (unsigned int) elf64_sym.st_info & 0xf);
 		fprintf(elf, " NDX:  %u", (unsigned int) elf64_sym.st_shndx);
